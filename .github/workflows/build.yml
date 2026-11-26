@@ -24,22 +24,24 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
-        run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
       - name: Extract JARVIS project
         run: |
+          mkdir -p project
           unzip -q JARVIS_AI_Android_Project.zip -d project
 
       - name: Find project folder
         run: |
-          SETTINGS=$(find project -name settings.gradle -o -name settings.gradle.kts | head -n 1)
+          SETTINGS=$(find project -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)
           test -n "$SETTINGS"
           echo "PROJECT_DIR=$(dirname "$SETTINGS")" >> "$GITHUB_ENV"
+
+      - name: Install Android SDK packages
+        run: |
+          SDK="$ANDROID_HOME"
+          SDKMANAGER=$(find "$SDK/cmdline-tools" -type f -name sdkmanager -print -quit)
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --sdk_root="$SDK" --licenses
+          "$SDKMANAGER" --sdk_root="$SDK" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -49,10 +51,12 @@ jobs:
       - name: Build APK
         run: |
           cd "$PROJECT_DIR"
-          gradle assembleDebug
+          gradle --no-daemon assembleDebug
 
       - name: Save APK
         uses: actions/upload-artifact@v4
         with:
           name: JARVIS-Android-APK
-          path: project/**/app/build/outputs/apk/debug/app-debug.apk
+          path: project/**/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+
